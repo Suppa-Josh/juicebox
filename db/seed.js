@@ -7,8 +7,8 @@ const {
   createPost,
   updatePost,
   getAllPosts,
-  getPostsByUser,
   getUserById,
+  getPostsByTagName,
 } = require("./index");
 
 // drops all tables from the database
@@ -17,6 +17,8 @@ async function dropTables() {
     console.log("Starting to drop tables...");
 
     await client.query(`
+      DROP TABLE IF EXISTS post_tags;
+      DROP TABLE IF EXISTS tags;
       DROP TABLE IF EXISTS posts;
       DROP TABLE IF EXISTS users;
     `);
@@ -50,6 +52,17 @@ async function createTables() {
           content TEXT NOT NULL,
           active BOOLEAN DEFAULT true
         );
+
+        CREATE TABLE tags(
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) UNIQUE NOT NULL
+        );
+
+        CREATE TABLE post_tags(
+          "postId" INTEGER REFERENCES posts(id),
+          "tagId" INTEGER REFERENCES tags(id),
+          UNIQUE ("postId", "tagId")
+          );
       `);
 
     console.log("Finished building tables!");
@@ -81,12 +94,6 @@ async function createInitialusers() {
       name: "Gladys",
       location: "Upper East Side",
     });
-    const josh = await createUser({
-      username: "suppa_nintendo",
-      password: "hunter2",
-      name: "Josh",
-      location: "Jacksonville, Florida",
-    });
 
     console.log("Finished creating users!");
   } catch (error) {
@@ -97,35 +104,35 @@ async function createInitialusers() {
 
 async function createInitialPosts() {
   try {
-    const [albert, sandra, glamgal, suppa_nintendo] = await getAllUsers();
+    const [albert, sandra, glamgal] = await getAllUsers();
 
     await createPost({
       authorId: albert.id,
       title: "First Post",
       content:
         "This is my first post. I hope I love writing blogs as much as I love writing them!",
+      tags: ["#happy", "#youcandoanything"],
     });
     await createPost({
       authorId: sandra.id,
       title: "Don't mess with me",
-      content: "See the title, I;m not here to play any games!",
+      content: "See the title, I'm not here to play any games!",
+      tags: ["#happy", "#worst-day-ever"],
     });
     await createPost({
       authorId: glamgal.id,
       title: "Have no fear, glamgal is here",
       content: "Call me Fergie, because I'm glamourous!",
-    });
-    await createPost({
-      authorId: suppa_nintendo.id,
-      title: "Hello, world",
-      content: "Coding is fun!",
+      tags: ["#happy", "#youcandoanything", "#canmandoeverything"],
     });
 
-    // a couple more
+    console.log("Finished creating posts!");
   } catch (error) {
+    console.log("Error creating posts!");
     throw error;
   }
 }
+
 async function rebuildDB() {
   try {
     client.connect();
@@ -135,6 +142,7 @@ async function rebuildDB() {
     await createInitialusers();
     await createInitialPosts();
   } catch (error) {
+    console.log("Error during rebuildDB!");
     throw error;
   }
 }
@@ -165,9 +173,19 @@ async function testDB() {
     });
     console.log("Result: ", updatePostResult);
 
-    console.log("Calling getUserById with 4");
-    const suppa = await getUserById(4);
-    console.log("Result: ", suppa);
+    console.log("Calling updatePost on posts[1], only updating tags");
+    const updatePostTagsResult = await updatePost(posts[1].id, {
+      tags: ["#youcandoanything", "#redfish", "#bluefish"],
+    });
+    console.log("Result:", updatePostTagsResult);
+
+    console.log("Calling getUserById with 3");
+    const userThree = await getUserById(3);
+    console.log("Result: ", userThree);
+
+    console.log("Calling getPostsByTagName with #happy");
+    const postsWithHappy = await getPostsByTagName("#happy");
+    console.log("Result:", postsWithHappy);
 
     console.log("Finished database tests!");
   } catch (error) {
@@ -182,5 +200,3 @@ rebuildDB()
   .finally(() => {
     client.end();
   });
-
-// QUESTION: why do we close the client connection? what are the repurcussions?
